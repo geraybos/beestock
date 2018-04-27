@@ -54,7 +54,7 @@ class eagle_eye_bot(object):
             print('sell stock:', stock_code)
             print('sell price:', price)
         elif high/price>1.1:
-            print('---------------------')
+            print('--------------------+=')
             print('sell stock:',stock_code)
             print('sell price:',price)
 
