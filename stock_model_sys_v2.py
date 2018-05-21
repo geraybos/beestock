@@ -566,7 +566,7 @@ def model_test(industry_name='jisuanji', source_dir='data/industry_sw/', max_fil
     model = stock_model_v2(industry_name=industry_name, source_dir=source_dir + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
     model.load_model()
-    x, y1, y2 = load_data(path=model.source_dir + '/test/000670.csv',
+    x, y1, y2 = load_data(path=model.source_dir + '/test/000708.csv',
                           seq_len=model.seq_dim)  # data/industry_sw/gangtie/test/600701
     x = np.array(x)
     y1 = np.array(y1)
@@ -643,7 +643,7 @@ if __name__ == '__main__':
     input_dim = 5
     out_dim = 8
     # run(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
-    # model_test(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
+    model_test(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
     # from data_collect import stock_data_downloader
     #
     # source_dirs = []
@@ -654,8 +654,8 @@ if __name__ == '__main__':
 
     start=datetime.today()-timedelta(days=45)
     start=start.strftime('%Y-%m-%d')
-    select_best_stock_at_yestoday(start_date=start, industry_name=industry, max_file_count=max_file_count, seq_dim=seq_dim,
-              input_dim=input_dim, out_dim=out_dim)
+    # select_best_stock_at_yestoday(start_date=start, industry_name=industry, max_file_count=max_file_count, seq_dim=seq_dim,
+    #           input_dim=input_dim, out_dim=out_dim)
 
     # select_best_stock_after_open(start_date=start, industry_name=industry, max_file_count=max_file_count,
     #                               seq_dim=seq_dim,input_dim=input_dim, out_dim=out_dim)
