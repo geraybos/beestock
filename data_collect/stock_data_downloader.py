@@ -242,9 +242,9 @@ def filter_data(industry=''):
             print(file)
 def update_hushen_stock_info():
     empty_table('hushen_stock_info')
-
+    db_config=auto_run_daily_v2.db_config
     df=ts.get_stock_basics()
-    mysql_con=create_engine('mysql+pymysql://root:yangxh@localhost:3306/quant_bee?charset=utf8')
+    mysql_con=create_engine('mysql+pymysql://'+db_config['full'])
     df.rename(columns={'pe':'price_earning_ratio', 'totalAssets':'total_assets','liquidAssets':'liquid_assets','fixedAssets':'fixed_assets'
                        ,'reservedPerShare':'reserved_per_share','timeToMarket':'time_to_market','perundp':'per_undp'}, inplace = True)
     df=df[df['time_to_market']!=0]#过滤退市
@@ -255,7 +255,8 @@ def format_time_to_market(x):
     return x[0:4]+'-'+x[4:6]+'-'+x[6:]
 
 def empty_table(table=''):
-    db = mysql.connector.connect(user='root', password='yangxh', database='quant_bee', use_unicode=True)
+    db_config=auto_run_daily_v2.db_config
+    db = mysql.connector.connect(host=db_config['host'],user=db_config['user'],password=db_config['password'],database=db_config['db'], use_unicode=True)
     cursor = db.cursor()
     sql = 'delete from '+table
     auto_run_daily_v2.db_update(db, cursor, sql)
@@ -276,7 +277,8 @@ def update_hushen_stock_list_by_concept():
 
     df=df[['code','c_name']]
     df.rename(columns={'c_name':'concept'},inplace=True)
-    mysql_con = create_engine('mysql+pymysql://root:yangxh@localhost:3306/quant_bee?charset=utf8')
+    db_config=auto_run_daily_v2.db_config
+    mysql_con = create_engine('mysql+pymysql://'+db_config['full'])
     df.to_sql('hushen_stock_concept', mysql_con, if_exists='append',index=False)
 
 

@@ -28,7 +28,7 @@ class stock_model(object):
         self.model.add(Dense(self.seq_dim))
         self.model.add(Dense(self.out_dim))
 
-        self.model.compile(optimizer=RMSprop(0.0005), loss='mse', metrics=['accuracy'])
+        self.model.compile(optimizer=RMSprop(0.005), loss='mse', metrics=['accuracy'])
 
     def train(self, batch_size=10, epochs=20):
         X, Y = load_data(self.source_dir, self.seq_dim, self.max_file_count)
@@ -286,19 +286,21 @@ def select_best_stock(start_date='', industry_name='jisuanji', max_file_count=No
     import tushare as ts
     select_stocks=pd.DataFrame(None,columns=['code','delta','high','low'])
     i=0
+    stocks=stocks[:30]
     for code in stocks:
         raw_data=ts.get_k_data(code,start=start_date)
-        if len(raw_data)==5:
+        if len(raw_data) >= seq_dim:
+            raw_data=raw_data[-seq_dim:]
             delta,high,low=predict_simulation_next_2d(model,raw_data)
             buy=raw_data.ix[raw_data.index[-1],'close']*0.988
             sell=buy*1.03
             select_stocks=select_stocks.append(pd.DataFrame([[code,delta,high,low]],columns=['code','delta','high','low']),True)
         if i%100==0:
-            print i,len(stocks)
+            print(i,len(stocks))
         i+=1
     select_stocks=select_stocks.sort_values(by='delta',ascending=False)
     select_stocks.to_csv('data/result/hope_stock.csv')
-    print select_stocks[0:30]
+    print(select_stocks[0:30])
 
 
 
@@ -323,7 +325,7 @@ def run(industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count
     else:
         model.build_model()
 
-    model.train(epochs=3)
+    model.train(epochs=2)
 
 
 def model_test(industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count=10, seq_dim=5, input_dim=5, out_dim=2):
@@ -383,13 +385,13 @@ def read_data(dirs):
 
 
 if __name__ == '__main__':
-    source_dir = 'data/nasdaq/'
+    source_dir = 'data/industry_sw/'
     industry = 'all'
-    max_file_count = 1
+    max_file_count = 20
     seq_dim = 20
     input_dim = 5
     out_dim = 2
-    run(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
+    # run(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
     # model_test(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
     # from data_collect import stock_data_downloader
     #
@@ -399,6 +401,6 @@ if __name__ == '__main__':
     # read_data(source_dirs[20:40])
 
 
-    # select_best_stock(start_date='2017-11-01')
+    select_best_stock(start_date='2018-04-01')
 
 

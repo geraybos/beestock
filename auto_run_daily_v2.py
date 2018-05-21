@@ -5,7 +5,16 @@ import stock_model_sys_v2
 import pandas as pd
 import tushare as ts
 from k_pattern import stock_pattern_by_main
-
+#106.14.153.239
+db_config={
+    'host':'localhost',
+    'port':3306,
+    'user':'root',
+    'password':'yangxh',
+    'db':'quant_bee',
+    'charset':'utf8',
+    'full':'root:yangxh@localhost:3306/quant_bee?charset=utf8'
+}
 
 def db_find(cursor,sql='select count(*) from mysql_table'):
     cursor.execute(sql)
@@ -73,7 +82,7 @@ def run():
         start = datetime.today() - timedelta(days=45)
         start = start.strftime('%Y-%m-%d')
 
-        db=mysql.connector.connect(user='root',password='yangxh',database='quant_bee',use_unicode=True)
+        db=mysql.connector.connect(host=db_config['host'],user=db_config['user'],password=db_config['password'],database=db_config['db'],use_unicode=True)
         cursor=db.cursor()
         sql='select value from leo_env_config where groupId=1 and name="run_status"'
         rs=db_find(cursor,sql)

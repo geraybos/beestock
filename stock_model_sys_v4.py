@@ -16,10 +16,12 @@ from k_pattern import stock_pattern_by_main
 from datetime import datetime,timedelta
 
 
+input_indexs=[0,1,2,3]#the index of out_put from input
+output_indexs=[2,3]#the index of show high and low
 
-class stock_model_v2(object):
+class stock_model_v4(object):
     def __init__(self, industry_name='industry_name', source_dir=None, max_file_count=None, seq_dim=5, input_dim=5,
-                 out_dim=4):
+                 out_dim=5):
         self.industry_name = industry_name
         self.model_path = source_dir + '/model'
         self.source_dir = source_dir
@@ -31,13 +33,16 @@ class stock_model_v2(object):
 
     def build_model(self):
         input = Input(shape=(self.seq_dim, self.input_dim))
-        gru = GRU(self.seq_dim * 2)
+        gru = GRU(self.input_dim*self.seq_dim)
         # dropout = Dropout(0.3)
-        dense1 = Dense(self.seq_dim * 2)
-        dense2 = Dense(self.seq_dim*4)
-        dense3 = Dense(self.out_dim * 4)
-        dense4 = Dense(self.out_dim)
-        dense_out = Dense(self.out_dim // 2)
+        dense1 = Dense(self.input_dim * 8)
+        dense2 = Dense(self.input_dim * 16)
+        dense3 = Dense(self.out_dim * 8)
+        dense4 = Dense(self.out_dim*4)
+        dense_out = Dense(self.out_dim)
+
+
+        dense_fit=Dense(self.input_dim,activation='relu')
 
         z0 = gru(input)
         # z0 = dropout(z0)
@@ -45,22 +50,22 @@ class stock_model_v2(object):
         z0 = dense2(z0)
         z0 = dense3(z0)
         z0 = dense4(z0)
-        y0 = dense_out(z0)  # shape=(1,2) [high,low]
+        y0 = dense_out(z0)
 
-        lambda_1 = Lambda(split_end_to_1, output_shape=(self.input_dim,))(input)  # shape=(,5)self.split_end_to_1_shape
+        y0_fit=dense_fit(y0)
+
         lambda_2 = Lambda(split_end_from_1, output_shape=(self.seq_dim - 1, self.input_dim))(
             input)  # shape=(4,5)self.split_end_from_1_shape
 
-        input_1_out = merge([y0, lambda_1], mode='concat', concat_axis=-1)  # shape=(,7)
+        # input_1_out = merge([y0, lambda_1], mode='concat', concat_axis=-1)  # shape=(,7)
 
-        input_1_out = Dense(self.input_dim)(input_1_out)  # shape=(,5)
+        # input_1_out = Dense(self.input_dim)(input_1_out)  # shape=(,5)
         # input_1_out=Reshape((1,self.input_dim))(input_1_out)#shape=(1,5)
 
         input_2 = Flatten()(lambda_2)
         # input_2_out = K.concatenate([input_1_out,input_2],axis=1)
-        input_2_out = merge([input_2, input_1_out], mode='concat', concat_axis=-1)  # shape=(5,5)
+        input_2_out = merge([input_2, y0_fit], mode='concat', concat_axis=-1)  # shape=(5,5)
         input_2_out = Reshape((self.seq_dim, self.input_dim))(input_2_out)
-        # input_2_out = Lambda(format_data_next,output_shape=(self.seq_dim, self.input_dim))(input_2_out)
 
         z1 = gru(input_2_out)
         # z1 = dropout(z1)
@@ -68,15 +73,15 @@ class stock_model_v2(object):
         z1 = dense2(z1)
         z1 = dense3(z1)
         z1 = dense4(z1)
-        y1 = dense_out(z1)  # shape=(1,2) [high,low]
+        y1 = dense_out(z1)
 
         # y=merge([y0,y1],mode='concat',concat_axis=1)#shape(1,4) [high1,low1,high2,low2]
         # y=Dense(4)(y1)
         self.model = Model(inputs=[input], outputs=[y0, y1])
 
-        self.model.compile(optimizer=RMSprop(0.0005), loss='mse', metrics=['accuracy'],loss_weights=[0.8,1])
+        self.model.compile(optimizer=RMSprop(0.0001), loss='mse', metrics=['accuracy'])#,loss_weights=[1,0.8]
 
-    def train(self, batch_size=10, epochs=20):
+    def train(self, batch_size=16, epochs=20):
         X, Y1, Y2 = load_data(self.source_dir, self.seq_dim, self.max_file_count)
         print('load data completed!!!')
         X, Y1, Y2, _, _, _ = split_dataset(1, X, Y1, Y2, batch_size)
@@ -84,11 +89,11 @@ class stock_model_v2(object):
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
         self.model.save(
-            self.model_path + '/model_v2_' + self.industry_name + '_in_' + str(self.input_dim) + '_seq_' + str(
+            self.model_path + '/model_v4_' + self.industry_name + '_in_' + str(self.input_dim) + '_seq_' + str(
                 self.seq_dim) + '_out_' + str(self.out_dim) + '_filecount_' + str(self.max_file_count) + '.h5')
 
     def load_model(self):
-        model_file = self.model_path + '/model_v2_' + self.industry_name + '_in_' + str(self.input_dim) + '_seq_' + str(
+        model_file = self.model_path + '/model_v4_' + self.industry_name + '_in_' + str(self.input_dim) + '_seq_' + str(
             self.seq_dim) + '_out_' + str(self.out_dim) + '_filecount_' + str(self.max_file_count) + '.h5'
 
         self.model = load_model(model_file)
@@ -96,30 +101,8 @@ class stock_model_v2(object):
     def predict(self, X, batch_size=10, verbose=0):
         return self.model.predict(x=X, batch_size=batch_size, verbose=verbose)
 
-
-def split_end_to_1(x):
-    return x[:, -1]
-
-
 def split_end_from_1(x):
     return x[:, 1:, :]
-
-def format_data_next(x):
-    for ix in x:
-        ix[:, :4]=tf.div(ix[:, :4],ix[0, 3])
-        ix[:, 4]=tf.div(ix[:, 4] , ix[0, 4])
-    # x[:,:, :4] /= x[:,0, 3]
-    # x[:,:, 4] /= x[:,0, 4]
-
-def split_end_to_1_shape(input_shape):
-    input_shape = list(input_shape)
-    return tuple(input_shape)
-
-
-def split_end_from_1_shape(input_shape):
-    input_shape = list(input_shape)
-    input_shape[-1] -= 1
-    return tuple(input_shape)
 
 
 def load_data(path, seq_len=5, max_size=10):
@@ -141,8 +124,8 @@ def load_data(path, seq_len=5, max_size=10):
         for i in range(raw_data.shape[0] - seq_len - 2):
             ret = format_time_series_data(raw_data[i:i + seq_len + 2])
             data_x.append(ret[0:-2, :])
-            data_y1.append(ret[-2, 0:4])  # np.append(ret[-2, 2:4],ret[-1, 2:4],axis=0)
-            data_y2.append(ret[-1, 0:4])
+            data_y1.append(ret[-2, input_indexs])  # np.append(ret[-2, 2:4],ret[-1, 2:4],axis=0)
+            data_y2.append(ret[-1, input_indexs])
     else:
         dirs = os.listdir(path)
         random.shuffle(dirs)
@@ -158,9 +141,8 @@ def load_data(path, seq_len=5, max_size=10):
                 for i in range(raw_data.shape[0] - seq_len - 2):
                     ret = format_time_series_data(raw_data[i:i + seq_len + 2])
                     data_x.append(ret[0:-2, :])
-                    # data_y.append(np.append(ret[-2, 2:4],ret[-1, 2:4],axis=0))
-                    data_y1.append(ret[-2, 0:4])
-                    data_y2.append(ret[-1, 0:4])
+                    data_y1.append(ret[-2, input_indexs])
+                    data_y2.append(ret[-1, input_indexs])
                 print('load file:%s\n%d/%d' %(name,file_count,sum_file_count))
             file_count += 1
             if max_size is not None and file_count > max_size:
@@ -201,9 +183,6 @@ def format_time_series_data(raw_data_unit):
     return data
 
 
-def sigmiod(x):
-    return 1 / (1 + math.exp(-x))
-
 
 def predict_simulation_next_2d(model, data):
     """
@@ -216,29 +195,7 @@ def predict_simulation_next_2d(model, data):
     input = np.array([data[0:-1]])
     y1, y2 = model.predict(input)
 
-    # ret_trend+=1
-    # if data[-2,2]<data[-3,2] or data[-2,3]<data[-3,3]:
-    #     ret_trend=-1
-    # else:
 
-    #
-    # if abs(data[-2, 2] - data[-2, 3]) < 1e-3:
-    #     alpha = -10
-    # else:
-    #     x = (data[-2, 1] - data[-2, 0]) / (data[-2, 2] - data[-2, 3])
-    #     alpha = sigmiod(x)y2[0,1]<y1[0,1] or y2[0,0]<y1[0,0] or y2[0,0]>y1[0,2] or
-    # if y1[0,0]>y1[0,1] or y2[0,1]<y1[0,1] or y2[0,0]<y1[0,0] or \
-    #         stock_pattern_by_main.previous_h_line(data)<0 \
-    #         or stock_pattern_by_main.pattern_analysis(data)<0:
-    #     ret_trend=-1
-    # else:
-    #     ret_trend = (y2[0, 2] - y1[0, 3]) / y1[0, 3]
-    # if (y1[0,0]<y2[0,0] and y2[0,0]<y1[0,1] and y1[0,1]<y2[0,1]) \
-    #         and stock_pattern_by_main.previous_h_line(data)>0 \
-    #         and stock_pattern_by_main.pattern_analysis(data)>0:
-    #     ret_trend = (y2[0, 2] - y1[0, 3]) / y1[0, 3]
-    # else:
-    #     ret_trend = -1
     if (y1[0, 3] < y2[0, 3] and y1[0, 2] < y2[0, 2] and y1[0,0]<y1[0,1]) \
             and stock_pattern_by_main.previous_h_line(data) > 0 \
             and stock_pattern_by_main.pattern_analysis(data) > 0:
@@ -269,11 +226,22 @@ def predict_next_2d(model, data):
     else:
         buy_flag = -10
     ret_trend = (y2[0, 2] - y1[0, 3]) / y1[0, 3]
-    return buy_flag,ret_trend, y1[0], y2[0]
+    return buy_flag,ret_trend, y1[0,input_indexs], y2[0,input_indexs]
 
 
 def hope(data_dict, industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count=None, seq_dim=5, input_dim=5, out_dim=4):
-    model = stock_model_v2(industry_name=industry_name, source_dir=source_dir + industry_name,
+    """
+    #TODO
+    :param data_dict:
+    :param industry_name:
+    :param source_dir:
+    :param max_file_count:
+    :param seq_dim:
+    :param input_dim:
+    :param out_dim:
+    :return:
+    """
+    model = stock_model_v4(industry_name=industry_name, source_dir=source_dir + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
     model.load_model()
     input_seq_size = seq_dim + 2
@@ -433,7 +401,7 @@ def hope(data_dict, industry_name='jisuanji', source_dir='data/industry_sw/', ma
 
 def print_best_stock_at_today(start_date='', industry_name='jisuanji', max_file_count=None, seq_dim=5, input_dim=5, out_dim=2,stocks=[]):
 
-    model = stock_model_v2(industry_name=industry_name, source_dir='data/industry_sw/' + industry_name,
+    model = stock_model_v4(industry_name=industry_name, source_dir='data/industry_sw/' + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
     model.load_model()
     for code in stocks:
@@ -454,7 +422,7 @@ def select_best_stock_at_yestoday(start_date='', industry_name='jisuanji', max_f
     stocks = stocks['code']
     stocks = stocks.drop_duplicates()
     stocks=stocks[1:]
-    model = stock_model_v2(industry_name=industry_name, source_dir='data/industry_sw/' + industry_name,
+    model = stock_model_v4(industry_name=industry_name, source_dir='data/industry_sw/' + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
     model.load_model()
 
@@ -482,12 +450,11 @@ def select_best_stock_at_yestoday(start_date='', industry_name='jisuanji', max_f
         i += 1
     select_stocks = select_stocks.sort_values(by=['buy_flag','delta'], ascending=False)
 
-    from data_collect import stock_data_downloader
-    from sqlalchemy import create_engine
-    import auto_run_daily_v2
-    stock_data_downloader.empty_table('hushen_hope_daily')
-    mysql_con = create_engine('mysql+pymysql://'+auto_run_daily_v2.db_config['full'])
-    select_stocks.to_sql('hushen_hope_daily', mysql_con, if_exists='append', index=False)
+    # from data_collect import stock_data_downloader
+    # from sqlalchemy import create_engine
+    # stock_data_downloader.empty_table('hushen_hope_daily')
+    # mysql_con = create_engine('mysql+pymysql://root:yangxh@localhost:3306/quant_bee?charset=utf8')
+    # select_stocks.to_sql('hushen_hope_daily', mysql_con, if_exists='append', index=False)
     # select_stocks =select_stocks[0:100]
     end_v=select_stocks.get_value(select_stocks.shape[0]-1,'code')
     select_stocks.set_value(select_stocks.shape[0]-1,'code','str'+str(end_v))
@@ -534,18 +501,20 @@ def select_best_stock_after_open(start_date='', industry_name='jisuanji', max_fi
 
 def show(y_list, color=['r*', 'g*']):
     plt.subplot(211)
+    plt.grid(True)
     for i in range(len(y_list)):
         plt.plot(y_list[i][:, 0], color[i])
     plt.subplot(212)
     for i in range(len(y_list)):
         plt.plot(y_list[i][:, 1], color[i])
+    plt.grid(True)
     plt.show()
 
 
 def run(industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count=10, seq_dim=5, input_dim=5, out_dim=2):
-    model = stock_model_v2(industry_name=industry_name, source_dir=source_dir + industry_name,
+    model = stock_model_v4(industry_name=industry_name, source_dir=source_dir + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
-    model_file = model.model_path + '/model_v2_' + model.industry_name + '_in_' + str(model.input_dim) + '_seq_' + str(
+    model_file = model.model_path + '/model_v4_' + model.industry_name + '_in_' + str(model.input_dim) + '_seq_' + str(
         model.seq_dim) + '_out_' + str(model.out_dim) + '_filecount_' + str(model.max_file_count) + '.h5'
     if os.path.exists(model_file):
         model.load_model()
@@ -563,7 +532,7 @@ def run(industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count
 
 
 def model_test(industry_name='jisuanji', source_dir='data/industry_sw/', max_file_count=10, seq_dim=5, input_dim=5, out_dim=2):
-    model = stock_model_v2(industry_name=industry_name, source_dir=source_dir + industry_name,
+    model = stock_model_v4(industry_name=industry_name, source_dir=source_dir + industry_name,
                            max_file_count=max_file_count, seq_dim=seq_dim, input_dim=input_dim, out_dim=out_dim)
     model.load_model()
     x, y1, y2 = load_data(path=model.source_dir + '/test/000670.csv',
@@ -572,7 +541,7 @@ def model_test(industry_name='jisuanji', source_dir='data/industry_sw/', max_fil
     y1 = np.array(y1)
     y2 = np.array(y2)
     y_1, y_2 = model.predict([x])
-    show([y1[:,2:4], y_1[:,2:4]], color=['r*', 'g*', 'b*'])
+    show([y1[:,output_indexs], y_1[:,output_indexs]], color=['r*', 'g*', 'b*'])
     # show([y2, y_2], color=['r*', 'g*', 'b*'])
 
     # show([y1, y_1], color=['r*', 'g*'])
@@ -600,48 +569,13 @@ def monitor_buy(stocks):
     my_eagle_eye.start()
 
 
-import keras
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, Activation
-from keras.optimizers import SGD
-
-# Generate dummy data
-import numpy as np
-def test_keras():
-    x_train = np.random.random((1000, 20))
-    y_train = keras.utils.to_categorical(np.random.randint(10, size=(1000, 1)), num_classes=10)
-    x_test = np.random.random((100, 20))
-    y_test = keras.utils.to_categorical(np.random.randint(10, size=(100, 1)), num_classes=10)
-
-    model = Sequential()
-    # Dense(64) is a fully-connected layer with 64 hidden units.
-    # in the first layer, you must specify the expected input data shape:
-    # here, 20-dimensional vectors.
-    model.add(Dense(64, activation='relu', input_dim=20))
-    model.add(Dropout(0.5))
-    model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.5))
-    model.add(Dense(10, activation='softmax'))
-
-    sgd = SGD(lr=0.01, decay=1e-6, momentum=0.9, nesterov=True)
-    model.compile(loss='categorical_crossentropy',
-                  optimizer=sgd,
-                  metrics=['accuracy'])
-
-    model.fit(x_train, y_train,
-              epochs=20,
-              batch_size=128)
-    score = model.evaluate(x_test, y_test, batch_size=128)
-    print(score)
-
-#[2.318359136581421, 0.07999999821186066]
 if __name__ == '__main__':
     source_dir='data/industry_sw/'
     industry = 'all'
     max_file_count = 1100
     seq_dim = 20
     input_dim = 5
-    out_dim = 8
+    out_dim = len(input_indexs)
     # run(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
     # model_test(industry_name=industry,source_dir=source_dir,max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim,out_dim=out_dim)
     # from data_collect import stock_data_downloader
@@ -665,5 +599,3 @@ if __name__ == '__main__':
 
     # stocks=['300624','002907']
     # print_best_stock_at_today(start_date=start, industry_name=industry, max_file_count=max_file_count,seq_dim=seq_dim,input_dim=input_dim, out_dim=out_dim,stocks=stocks)
-
-    # test_keras()
