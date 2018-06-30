@@ -5,7 +5,6 @@ import stock_model_sys_v2
 import pandas as pd
 import tushare as ts
 from k_pattern import stock_pattern_by_main
-#106.14.153.239
 db_config={
     'host':'localhost',
     'port':3306,
